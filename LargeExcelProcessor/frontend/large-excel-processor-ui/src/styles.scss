@@ -185,36 +185,45 @@ html {
   --mdc-outlined-card-container-elevation: 0;
   --mat-card-subtitle-text-font: var(--font-family);
   --mat-card-title-text-font: var(--font-family);
+  --mat-filled-button-container-color: var(--ink);
+  --mat-filled-button-label-text-color: var(--canvas);
+  --mat-filled-button-hover-state-layer-color: var(--surface-soft);
+  --mat-outlined-button-outline-color: var(--hairline-strong);
+  --mat-outlined-button-label-text-color: var(--ink);
+  --mat-outlined-button-hover-outline-color: var(--ink);
+  --mdc-text-button-label-text-font: var(--font-family);
+  --mdc-filled-button-label-text-font: var(--font-family);
+  --mdc-outlined-button-label-text-font: var(--font-family);
 }
 
 .mat-mdc-table {
-  background: transparent !important;
+  background: transparent;
 }
 
 .mat-mdc-header-row {
-  border-bottom: 1px solid var(--hairline-strong) !important;
+  border-bottom: 1px solid var(--hairline-strong);
 }
 
 .mat-mdc-row {
-  border-bottom: 1px solid var(--hairline) !important;
+  border-bottom: 1px solid var(--hairline);
 }
 
 .mat-mdc-header-cell {
-  font-family: var(--font-family) !important;
-  font-size: 14px !important;
-  font-weight: 700 !important;
-  color: var(--ink) !important;
+  font-family: var(--font-family);
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink);
   text-transform: lowercase;
-  border-bottom-color: var(--hairline-strong) !important;
-  padding: 8px 12px !important;
+  border-bottom-color: var(--hairline-strong);
+  padding: 8px 12px;
 }
 
 .mat-mdc-cell {
-  font-family: var(--font-family) !important;
-  font-size: 14px !important;
-  color: var(--body) !important;
-  border-bottom-color: var(--hairline) !important;
-  padding: 8px 12px !important;
+  font-family: var(--font-family);
+  font-size: 14px;
+  color: var(--body);
+  border-bottom-color: var(--hairline);
+  padding: 8px 12px;
 }
 
 .mat-mdc-row:last-child .mat-mdc-cell {
@@ -227,19 +236,19 @@ html {
 }
 
 .mat-mdc-paginator-page-size .mat-mdc-select-trigger {
-  font-family: var(--font-family) !important;
+  font-family: var(--font-family);
 }
 
 .mdc-paginator__total-records {
-  font-family: var(--font-family) !important;
+  font-family: var(--font-family);
 }
 
 .mat-mdc-select-panel {
-  font-family: var(--font-family) !important;
+  font-family: var(--font-family);
 }
 
 .mat-mdc-option {
-  font-family: var(--font-family) !important;
+  font-family: var(--font-family);
 }
 
 .mat-mdc-progress-bar {
@@ -249,17 +258,7 @@ html {
   border-radius: 4px;
 }
 
-button.mat-mdc-unelevated-button,
-button.mat-mdc-raised-button,
-button.mat-mdc-outlined-button,
-button.mat-mdc-button {
-  font-family: var(--font-family) !important;
-}
-
 button.mat-mdc-unelevated-button.mat-mdc-button-base {
-  background: var(--ink) !important;
-  color: var(--canvas) !important;
-  border-radius: 4px !important;
   height: 36px;
   line-height: 2;
   font-size: 16px;
@@ -269,15 +268,13 @@ button.mat-mdc-unelevated-button.mat-mdc-button-base {
 }
 
 button.mat-mdc-unelevated-button.mat-mdc-button-base:disabled {
-  background: var(--surface-card) !important;
-  color: var(--ash) !important;
+  background: var(--surface-card);
+  color: var(--ash);
 }
 
 button.mat-mdc-outlined-button.mat-mdc-button-base {
-  background: var(--canvas) !important;
-  color: var(--ink) !important;
-  border: 1px solid var(--hairline-strong) !important;
-  border-radius: 4px !important;
+  background: var(--canvas);
+  border: 1px solid var(--hairline-strong);
   height: 36px;
   line-height: 2;
   font-size: 16px;
@@ -287,5 +284,5 @@ button.mat-mdc-outlined-button.mat-mdc-button-base {
 
 .mat-mdc-progress-spinner .mdc-circular-progress__indeterminate-circle-graphic,
 .mat-mdc-progress-spinner .mdc-circular-progress__determinate-circle-graphic {
-  stroke: var(--ink) !important;
+  stroke: var(--ink);
 }

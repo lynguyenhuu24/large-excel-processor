@@ -60,28 +60,50 @@ export class SignalrService implements OnDestroy {
       this._requestDeleted.next(data.id);
     });
 
-    await this.hubConnection.start();
+    try {
+      await this.hubConnection.start();
+    } catch (err) {
+      console.error('SignalR connection failed', err);
+    }
   }
 
   async subscribeToJob(jobId: string): Promise<void> {
     await this.connect();
-    await this.hubConnection?.invoke('SubscribeToJob', jobId);
+    try {
+      await this.hubConnection?.invoke('SubscribeToJob', jobId);
+    } catch (err) {
+      console.error('SignalR subscribeToJob failed', err);
+    }
   }
 
   async unsubscribeFromJob(jobId: string): Promise<void> {
-    await this.hubConnection?.invoke('UnsubscribeFromJob', jobId);
+    try {
+      await this.hubConnection?.invoke('UnsubscribeFromJob', jobId);
+    } catch {
+    }
   }
 
   async subscribeToRequests(): Promise<void> {
     await this.connect();
-    await this.hubConnection?.invoke('SubscribeToRequests');
+    try {
+      await this.hubConnection?.invoke('SubscribeToRequests');
+    } catch (err) {
+      console.error('SignalR subscribeToRequests failed', err);
+    }
   }
 
   async unsubscribeFromRequests(): Promise<void> {
-    await this.hubConnection?.invoke('UnsubscribeFromRequests');
+    try {
+      await this.hubConnection?.invoke('UnsubscribeFromRequests');
+    } catch {
+    }
   }
 
   ngOnDestroy(): void {
+    this._notifications.complete();
+    this._newRequests.complete();
+    this._requestsUpdates.complete();
+    this._requestDeleted.complete();
     this.hubConnection?.stop();
   }
 }

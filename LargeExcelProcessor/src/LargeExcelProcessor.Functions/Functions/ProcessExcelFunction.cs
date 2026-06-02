@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text.Json;
+using LargeExcelProcessor.Infrastructure;
 using LargeExcelProcessor.Infrastructure.Data;
 using LargeExcelProcessor.Infrastructure.Models;
 using LargeExcelProcessor.Shared.Models;
@@ -27,8 +28,9 @@ public class ProcessExcelFunction
 
     [Function("ProcessExcel")]
     public async Task Run(
-        [BlobTrigger("file-requests/uploads/{name}", Connection = "AzureWebJobsStorage")] byte[] blobBytes,
-        string name)
+        [BlobTrigger("file-requests/uploads/{name}", Connection = "AzureWebJobsStorage")] Stream blobStream,
+        string name,
+        CancellationToken cancellationToken)
     {
         _logger.LogInformation("Processing blob: {Name}", name);
 
@@ -39,55 +41,55 @@ public class ProcessExcelFunction
             return;
         }
 
-        var fileRequest = await _db.FileRequests.FindAsync(jobId.Value);
+        var fileRequest = await _db.FileRequests.FindAsync(new object[] { jobId.Value }, cancellationToken);
         if (fileRequest is null)
         {
             _logger.LogWarning("FileRequest not found for job: {JobId}", jobId);
             return;
         }
 
-        fileRequest.Status = "Processing";
-        await _db.SaveChangesAsync();
+        fileRequest.Status = Constants.StatusProcessing;
+        await _db.SaveChangesAsync(cancellationToken);
 
         try
         {
-            var result = await ProcessExcelStream(new MemoryStream(blobBytes), jobId.Value.ToString(), jobId.Value);
+            var result = await ProcessExcelStream(blobStream, jobId.Value.ToString(), jobId.Value, cancellationToken);
 
-            fileRequest.Status = "Completed";
+            fileRequest.Status = Constants.StatusCompleted;
             fileRequest.TotalRows = result.TotalRows;
             fileRequest.ImportedRows = result.ImportedRows;
             fileRequest.CompletedAt = DateTime.UtcNow;
-            await _db.SaveChangesAsync();
+            await _db.SaveChangesAsync(cancellationToken);
 
-            await NotifyAsync(new NotificationDto
+            await NotifyWithRetryAsync(new NotificationDto
             {
                 JobId = jobId.Value,
-                Status = "Completed",
+                Status = Constants.StatusCompleted,
                 TotalRows = result.TotalRows,
                 ImportedRows = result.ImportedRows,
                 CompletedAt = fileRequest.CompletedAt
-            });
+            }, cancellationToken);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to process blob: {Name}", name);
 
-            fileRequest.Status = "Failed";
+            fileRequest.Status = Constants.StatusFailed;
             fileRequest.ErrorMessage = ex.Message;
             fileRequest.CompletedAt = DateTime.UtcNow;
-            await _db.SaveChangesAsync();
+            await _db.SaveChangesAsync(cancellationToken);
 
-            await NotifyAsync(new NotificationDto
+            await NotifyWithRetryAsync(new NotificationDto
             {
                 JobId = jobId.Value,
-                Status = "Failed",
+                Status = Constants.StatusFailed,
                 ErrorMessage = ex.Message,
                 CompletedAt = fileRequest.CompletedAt
-            });
+            }, cancellationToken);
         }
     }
 
-    private async Task<UploadResultDto> ProcessExcelStream(Stream stream, string batchId, Guid jobId)
+    private async Task<UploadResultDto> ProcessExcelStream(Stream stream, string batchId, Guid jobId, CancellationToken cancellationToken)
     {
         var result = new UploadResultDto();
         var records = new List<InvoiceRecord>();
@@ -102,19 +104,19 @@ public class ProcessExcelFunction
         if (totalRows == 0)
             return result;
 
-        var fileRequest = await _db.FileRequests.FindAsync(jobId);
+        var fileRequest = await _db.FileRequests.FindAsync(new object[] { jobId }, cancellationToken);
         if (fileRequest != null)
         {
             fileRequest.TotalRows = totalRows;
-            await _db.SaveChangesAsync();
+            await _db.SaveChangesAsync(cancellationToken);
         }
 
-        await NotifyAsync(new NotificationDto
+        await NotifyWithRetryAsync(new NotificationDto
         {
             JobId = jobId,
-            Status = "Processing",
+            Status = Constants.StatusProcessing,
             TotalRows = totalRows
-        });
+        }, cancellationToken);
 
         for (int row = 2; row <= rowCount; row++)
         {
@@ -147,7 +149,7 @@ public class ProcessExcelFunction
                 if (records.Count >= batchSize)
                 {
                     _db.InvoiceRecords.AddRange(records);
-                    await _db.SaveChangesAsync();
+                    await _db.SaveChangesAsync(cancellationToken);
                     result.ImportedRows += records.Count;
                     records.Clear();
 
@@ -155,13 +157,13 @@ public class ProcessExcelFunction
                     if ((now - lastNotify).TotalSeconds >= 1)
                     {
                         lastNotify = now;
-                        await NotifyAsync(new NotificationDto
+                        await NotifyWithRetryAsync(new NotificationDto
                         {
                             JobId = jobId,
-                            Status = "Processing",
+                            Status = Constants.StatusProcessing,
                             TotalRows = totalRows,
                             ImportedRows = result.ImportedRows
-                        });
+                        }, cancellationToken);
                     }
                 }
             }
@@ -174,30 +176,45 @@ public class ProcessExcelFunction
         if (records.Count > 0)
         {
             _db.InvoiceRecords.AddRange(records);
-            await _db.SaveChangesAsync();
+            await _db.SaveChangesAsync(cancellationToken);
             result.ImportedRows += records.Count;
         }
 
         return result;
     }
 
-    private async Task NotifyAsync(NotificationDto notification)
+    private async Task NotifyWithRetryAsync(NotificationDto notification, CancellationToken cancellationToken)
     {
-        var baseUrl = Environment.GetEnvironmentVariable("NotifyApiBaseUrl") ?? "http://localhost:5000";
+        const int maxAttempts = 2;
+        for (int attempt = 0; attempt < maxAttempts; attempt++)
+        {
+            try
+            {
+                await NotifyAsync(notification, cancellationToken);
+                return;
+            }
+            catch (Exception ex) when (attempt < maxAttempts - 1)
+            {
+                _logger.LogWarning(ex, "Notification attempt {Attempt} failed for job {JobId}, retrying", attempt + 1, notification.JobId);
+                await Task.Delay(500, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "All notification attempts failed for job {JobId}", notification.JobId);
+            }
+        }
+    }
+
+    private async Task NotifyAsync(NotificationDto notification, CancellationToken cancellationToken)
+    {
+        var baseUrl = Environment.GetEnvironmentVariable(Constants.EnvVarNotifyApiBaseUrl) ?? Constants.DefaultNotifyApiBaseUrl;
         var client = _httpClientFactory.CreateClient();
         var json = JsonSerializer.Serialize(notification);
         var content = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
 
-        try
-        {
-            var response = await client.PostAsync($"{baseUrl}/api/notify", content);
-            response.EnsureSuccessStatusCode();
-            _logger.LogInformation("Notification sent for job {JobId}", notification.JobId);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Failed to send notification for job {JobId}", notification.JobId);
-        }
+        var response = await client.PostAsync($"{baseUrl}/api/notify", content, cancellationToken);
+        response.EnsureSuccessStatusCode();
+        _logger.LogInformation("Notification sent for job {JobId}", notification.JobId);
     }
 
     private static Guid? ParseJobId(string blobName)

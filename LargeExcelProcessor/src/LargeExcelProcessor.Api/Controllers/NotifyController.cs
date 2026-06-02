@@ -1,4 +1,5 @@
 using LargeExcelProcessor.Api.Hubs;
+using LargeExcelProcessor.Infrastructure;
 using LargeExcelProcessor.Infrastructure.Data;
 using LargeExcelProcessor.Shared.Models;
 using Microsoft.AspNetCore.Mvc;
@@ -33,16 +34,16 @@ public class NotifyController : ControllerBase
         if (notification.ResultBlobUri != null) job.ResultBlobUri = notification.ResultBlobUri;
         if (notification.ErrorMessage != null) job.ErrorMessage = notification.ErrorMessage;
 
-        if (notification.Status is "Completed" or "Failed")
+        if (notification.Status is Constants.StatusCompleted or Constants.StatusFailed)
             job.CompletedAt = notification.CompletedAt ?? DateTime.UtcNow;
 
         await _db.SaveChangesAsync(cancellationToken);
 
         await _hubContext.Clients.Group(notification.JobId.ToString()).SendAsync(
-            "ProcessingCompleted", notification, cancellationToken);
+            Constants.SignalRMethodProcessingCompleted, notification, cancellationToken);
 
-        await _hubContext.Clients.Group("requests").SendAsync(
-            "RequestStatusChanged", notification, cancellationToken);
+        await _hubContext.Clients.Group(Constants.SignalRGroupRequests).SendAsync(
+            Constants.SignalRMethodRequestStatusChanged, notification, cancellationToken);
 
         return Ok();
     }

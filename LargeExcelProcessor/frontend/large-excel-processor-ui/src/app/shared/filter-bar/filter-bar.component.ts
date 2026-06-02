@@ -1,4 +1,4 @@
-import { Component, model, input, output } from '@angular/core';
+import { ChangeDetectionStrategy, Component, model, input, output } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 
@@ -6,6 +6,7 @@ import { FormsModule } from '@angular/forms';
   selector: 'app-filter-bar',
   standalone: true,
   imports: [CommonModule, FormsModule],
+  changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="filter-bar">
       <span class="filter-label">{{ searchLabel() }}</span>
@@ -20,7 +21,7 @@ import { FormsModule } from '@angular/forms';
         <span class="filter-label">{{ statusLabel() }}</span>
         <select class="filter-select" [(ngModel)]="status">
           <option value="">all statuses</option>
-          @for (s of statuses(); track s) {
+          @for (s of statuses(); track $index) {
             <option [value]="s">{{ s }}</option>
           }
         </select>

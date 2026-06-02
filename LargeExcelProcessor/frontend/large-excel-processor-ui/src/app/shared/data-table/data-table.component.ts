@@ -1,4 +1,4 @@
-import { Component, input, output } from '@angular/core';
+import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatTableModule } from '@angular/material/table';
 import { MatPaginatorModule, PageEvent } from '@angular/material/paginator';
@@ -7,6 +7,7 @@ import { MatPaginatorModule, PageEvent } from '@angular/material/paginator';
   selector: 'app-data-table',
   standalone: true,
   imports: [CommonModule, MatTableModule, MatPaginatorModule],
+  changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (loading()) {
       <p class="loading-text">loading...</p>

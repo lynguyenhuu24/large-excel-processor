@@ -1,4 +1,5 @@
-import { Component, OnDestroy } from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, DestroyRef, inject, OnDestroy } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { HttpEventType } from '@angular/common/http';
 import { CommonModule } from '@angular/common';
 import { Subscription } from 'rxjs';
@@ -16,6 +17,7 @@ import { formatElapsed } from '../../shared/format-duration';
   imports: [CommonModule, SectionHeaderComponent, StatusBannerComponent, ProgressBarComponent],
   templateUrl: './upload.component.html',
   styleUrl: './upload.component.scss',
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class UploadComponent implements OnDestroy {
   selectedFile: File | null = null;
@@ -30,6 +32,8 @@ export class UploadComponent implements OnDestroy {
   processingImportedRows = 0;
   private clickTime = 0;
   private sub: Subscription | null = null;
+  private destroyRef = inject(DestroyRef);
+  private cdr = inject(ChangeDetectorRef);
 
   constructor(
     private excelService: ExcelService,
@@ -62,6 +66,7 @@ export class UploadComponent implements OnDestroy {
     if (!file.name.endsWith('.xlsx')) {
       this.error = 'Only .xlsx files are supported.';
       this.selectedFile = null;
+      this.cdr.markForCheck();
       return;
     }
     this.selectedFile = file;
@@ -69,6 +74,7 @@ export class UploadComponent implements OnDestroy {
     this.progress = 0;
     this.uploaded = false;
     this.processingStatus = null;
+    this.cdr.markForCheck();
   }
 
   upload(): void {
@@ -80,21 +86,26 @@ export class UploadComponent implements OnDestroy {
     this.processingStatus = null;
     this.clickTime = Date.now();
 
-    this.excelService.upload(this.selectedFile).subscribe({
+    this.excelService.upload(this.selectedFile).pipe(
+      takeUntilDestroyed(this.destroyRef),
+    ).subscribe({
       next: (event) => {
         if (event.type === HttpEventType.UploadProgress && event.total) {
           this.progress = Math.round((100 * event.loaded) / event.total);
+          this.cdr.markForCheck();
         } else if (event.type === HttpEventType.Response && event.body) {
           this.uploading = false;
           this.uploaded = true;
           const jobId = event.body.id;
           this.toastService.show('file queued for processing', 'info');
           this.subscribeToJob(jobId);
+          this.cdr.markForCheck();
         }
       },
       error: (err) => {
         this.error = err.message ?? 'Upload failed.';
         this.uploading = false;
+        this.cdr.markForCheck();
       },
     });
   }
@@ -104,7 +115,9 @@ export class UploadComponent implements OnDestroy {
     this.processingProgress = 0;
     this.processingTotalRows = 0;
     this.processingImportedRows = 0;
-    this.sub = this.signalrService.notifications$.subscribe((n) => {
+    this.sub = this.signalrService.notifications$.pipe(
+      takeUntilDestroyed(this.destroyRef),
+    ).subscribe((n) => {
       if (n.jobId === jobId) {
         const elapsed = this.clickTime ? ` in ${formatElapsed(this.clickTime)}` : '';
         if (n.status === 'Processing' && n.totalRows && n.totalRows > 0) {
@@ -125,6 +138,7 @@ export class UploadComponent implements OnDestroy {
             'error'
           );
         }
+        this.cdr.markForCheck();
       }
     });
 
@@ -147,6 +161,7 @@ export class UploadComponent implements OnDestroy {
     this.processingImportedRows = 0;
     this.clickTime = 0;
     if (this.sub) { this.sub.unsubscribe(); this.sub = null; }
+    this.cdr.markForCheck();
   }
 
   ngOnDestroy(): void {

@@ -1,13 +1,9 @@
 import { Routes } from '@angular/router';
-import { UploadComponent } from './components/upload/upload.component';
-import { RecordsComponent } from './components/records/records.component';
-import { RequestsComponent } from './components/requests/requests.component';
-import { SampleComponent } from './components/sample/sample.component';
 
 export const routes: Routes = [
   { path: '', redirectTo: '/requests', pathMatch: 'full' },
-  { path: 'upload', component: UploadComponent, title: 'Upload Excel' },
-  { path: 'records', component: RecordsComponent, title: 'View Records' },
-  { path: 'requests', component: RequestsComponent, title: 'File Requests' },
-  { path: 'sample', component: SampleComponent, title: 'Sample Generator' },
+  { path: 'upload', loadComponent: () => import('./components/upload/upload.component').then(m => m.UploadComponent), title: 'Upload Excel' },
+  { path: 'records', loadComponent: () => import('./components/records/records.component').then(m => m.RecordsComponent), title: 'View Records' },
+  { path: 'requests', loadComponent: () => import('./components/requests/requests.component').then(m => m.RequestsComponent), title: 'File Requests' },
+  { path: 'sample', loadComponent: () => import('./components/sample/sample.component').then(m => m.SampleComponent), title: 'Sample Generator' },
 ];

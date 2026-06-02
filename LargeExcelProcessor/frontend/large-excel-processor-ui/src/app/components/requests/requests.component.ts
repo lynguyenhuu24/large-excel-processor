@@ -1,4 +1,5 @@
-import { Component, OnInit, OnDestroy } from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, DestroyRef, inject } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { MatTableModule, MatTableDataSource } from '@angular/material/table';
 import { Subscription } from 'rxjs';
@@ -16,8 +17,9 @@ import { formatDuration as _formatDuration } from '../../shared/format-duration'
   imports: [CommonModule, MatTableModule, SectionHeaderComponent, DataTableComponent, ConfirmDialogComponent],
   templateUrl: './requests.component.html',
   styleUrl: './requests.component.scss',
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class RequestsComponent implements OnInit, OnDestroy {
+export class RequestsComponent {
   displayedColumns: string[] = [
     '#', 'id', 'requestType', 'fileName', 'fileSize',
     'status', 'importedRows', 'createdAt', 'duration', 'actions',
@@ -35,13 +37,13 @@ export class RequestsComponent implements OnInit, OnDestroy {
   private pendingRequests: FileRequest[] = [];
   currentPage = 1;
   currentPageSize = 50;
+  private destroyRef = inject(DestroyRef);
+  private cdr = inject(ChangeDetectorRef);
 
   constructor(
     private excelService: ExcelService,
     private signalrService: SignalrService,
-  ) {}
-
-  ngOnInit(): void {
+  ) {
     this.loadPage();
     this.subscribeToSignalR();
   }
@@ -56,6 +58,7 @@ export class RequestsComponent implements OnInit, OnDestroy {
         this.pendingRequests.unshift(req);
         this.dataSource.data = [...this.pendingRequests, ...this.dataSource.data];
         this.totalCount++;
+        this.cdr.markForCheck();
       }),
     );
 
@@ -63,15 +66,18 @@ export class RequestsComponent implements OnInit, OnDestroy {
       this.signalrService.requestsUpdates$.subscribe((update) => {
         const idx = this.dataSource.data.findIndex(r => r.id === update.jobId);
         if (idx >= 0) {
-          const row = this.dataSource.data[idx];
-          row.status = update.status;
-          if (update.totalRows != null) row.totalRows = update.totalRows;
-          if (update.importedRows != null) row.importedRows = update.importedRows;
-          if (update.fileSize != null) row.fileSize = update.fileSize;
-          if (update.resultBlobUri != null) row.resultBlobUri = update.resultBlobUri;
-          if (update.errorMessage != null) row.errorMessage = update.errorMessage;
-          if (update.completedAt) row.completedAt = update.completedAt;
-          this.dataSource.data = [...this.dataSource.data];
+          const updated = { ...this.dataSource.data[idx] };
+          updated.status = update.status;
+          if (update.totalRows != null) updated.totalRows = update.totalRows;
+          if (update.importedRows != null) updated.importedRows = update.importedRows;
+          if (update.fileSize != null) updated.fileSize = update.fileSize;
+          if (update.resultBlobUri != null) updated.resultBlobUri = update.resultBlobUri;
+          if (update.errorMessage != null) updated.errorMessage = update.errorMessage;
+          if (update.completedAt) updated.completedAt = update.completedAt;
+          const data = [...this.dataSource.data];
+          data[idx] = updated;
+          this.dataSource.data = data;
+          this.cdr.markForCheck();
         }
       }),
     );
@@ -82,6 +88,7 @@ export class RequestsComponent implements OnInit, OnDestroy {
         if (idx >= 0) {
           this.dataSource.data = this.dataSource.data.filter(r => r.id !== id);
           this.totalCount--;
+          this.cdr.markForCheck();
         }
       }),
     );
@@ -97,18 +104,22 @@ export class RequestsComponent implements OnInit, OnDestroy {
     this.loading = true;
     this.error = null;
 
-    this.excelService.getFileRequests(this.currentPage, this.currentPageSize).subscribe({
-      next: (result) => {
-        this.pendingRequests = [];
-        this.dataSource.data = result.items;
-        this.totalCount = result.totalCount;
-        this.loading = false;
-      },
-      error: (err) => {
-        this.error = err.message ?? 'Failed to load requests.';
-        this.loading = false;
-      },
-    });
+    this.excelService.getFileRequests(this.currentPage, this.currentPageSize)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (result) => {
+          this.pendingRequests = [];
+          this.dataSource.data = result.items;
+          this.totalCount = result.totalCount;
+          this.loading = false;
+          this.cdr.markForCheck();
+        },
+        error: (err) => {
+          this.error = err.message ?? 'Failed to load requests.';
+          this.loading = false;
+          this.cdr.markForCheck();
+        },
+      });
   }
 
   formatFileSize(bytes: number): string {
@@ -122,7 +133,22 @@ export class RequestsComponent implements OnInit, OnDestroy {
   }
 
   downloadFile(id: string): void {
-    window.open(`/api/filerequests/${id}/download`, '_blank');
+    this.excelService.downloadFile(id)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (blob) => {
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = 'download.xlsx';
+          a.click();
+          URL.revokeObjectURL(url);
+        },
+        error: () => {
+          this.error = 'Download failed.';
+          this.cdr.markForCheck();
+        },
+      });
   }
 
   promptDelete(id: string): void {
@@ -134,10 +160,21 @@ export class RequestsComponent implements OnInit, OnDestroy {
     if (!this.confirmDeleteId) return;
     const id = this.confirmDeleteId;
     this.confirmDeleteId = null;
-    this.excelService.deleteRequest(id).subscribe({
-      next: () => this.loadPage(),
-      error: (err) => { this.error = err.message ?? 'Delete failed.'; },
-    });
+    this.excelService.deleteRequest(id)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this.loadPage();
+        },
+        error: (err) => {
+          this.error = err.message ?? 'Delete failed.';
+          this.cdr.markForCheck();
+        },
+      });
+  }
+
+  rowNumber(index: number): number {
+    return (this.currentPage - 1) * this.currentPageSize + index + 1;
   }
 
   ngOnDestroy(): void {

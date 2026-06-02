@@ -7,7 +7,10 @@ import { FileRequest } from '../models/file-request.model';
 
 @Injectable({ providedIn: 'root' })
 export class ExcelService {
-  private readonly apiUrl = '/api/excel';
+  private readonly uploadUrl = '/api/upload';
+  private readonly recordsUrl = '/api/records';
+  private readonly exportUrl = '/api/export';
+  private readonly sampleUrl = '/api/sample';
   private readonly requestsUrl = '/api/filerequests';
 
   constructor(private http: HttpClient) {}
@@ -15,7 +18,7 @@ export class ExcelService {
   upload(file: File): Observable<HttpEvent<FileRequest>> {
     const formData = new FormData();
     formData.append('file', file);
-    return this.http.post<FileRequest>(`${this.apiUrl}/upload`, formData, {
+    return this.http.post<FileRequest>(this.uploadUrl, formData, {
       reportProgress: true,
       observe: 'events',
     });
@@ -46,7 +49,7 @@ export class ExcelService {
     if (status) params = params.set('status', status);
     if (dateFrom) params = params.set('dateFrom', dateFrom);
     if (dateTo) params = params.set('dateTo', dateTo);
-    return this.http.get<PagedResult<InvoiceRecord>>(`${this.apiUrl}/records`, {
+    return this.http.get<PagedResult<InvoiceRecord>>(this.recordsUrl, {
       params,
     });
   }
@@ -57,7 +60,7 @@ export class ExcelService {
     dateFrom?: string,
     dateTo?: string
   ): Observable<FileRequest> {
-    return this.http.post<FileRequest>(`${this.apiUrl}/export`, {
+    return this.http.post<FileRequest>(this.exportUrl, {
       search,
       status,
       dateFrom,
@@ -71,8 +74,14 @@ export class ExcelService {
 
   downloadSample(count: number): Observable<Blob> {
     const params = new HttpParams().set('count', count.toString());
-    return this.http.get(`${this.apiUrl}/sample`, {
+    return this.http.get(this.sampleUrl, {
       params,
+      responseType: 'blob',
+    });
+  }
+
+  downloadFile(id: string): Observable<Blob> {
+    return this.http.get(`${this.requestsUrl}/${id}/download`, {
       responseType: 'blob',
     });
   }

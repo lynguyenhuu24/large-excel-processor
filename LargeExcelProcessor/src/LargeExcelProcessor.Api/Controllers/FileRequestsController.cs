@@ -1,5 +1,6 @@
 using LargeExcelProcessor.Api.Hubs;
 using LargeExcelProcessor.Api.Services;
+using LargeExcelProcessor.Infrastructure;
 using LargeExcelProcessor.Infrastructure.Data;
 using LargeExcelProcessor.Shared.Models;
 using Microsoft.AspNetCore.Mvc;
@@ -97,7 +98,7 @@ public class FileRequestsController : ControllerBase
         if (fileRequest is null)
             return NotFound();
 
-        var blobUri = fileRequest.RequestType == "Export"
+        var blobUri = fileRequest.RequestType == Constants.RequestTypeExport
             ? fileRequest.ResultBlobUri
             : fileRequest.BlobUri;
 
@@ -125,23 +126,16 @@ public class FileRequestsController : ControllerBase
             await _blob.DeleteAsync(fileRequest.ResultBlobUri, cancellationToken);
 
         var batchKey = id.ToString();
-        var importedRows = await _db.InvoiceRecords
+        await _db.InvoiceRecords
             .Where(r => r.BatchId == batchKey)
-            .CountAsync(cancellationToken);
-
-        if (importedRows > 0)
-        {
-            await _db.InvoiceRecords
-                .Where(r => r.BatchId == batchKey)
-                .ExecuteDeleteAsync(cancellationToken);
-        }
+            .ExecuteDeleteAsync(cancellationToken);
 
         _db.FileRequests.Remove(fileRequest);
         await _db.SaveChangesAsync(cancellationToken);
 
-        _logger.LogInformation("Deleted file request {Id} with {Rows} imported rows", id, importedRows);
+        _logger.LogInformation("Deleted file request {Id} with batch {BatchKey}", id, batchKey);
 
-        await _hubContext.Clients.Group("requests").SendAsync("RequestDeleted", new { id }, cancellationToken);
+        await _hubContext.Clients.Group(Constants.SignalRGroupRequests).SendAsync(Constants.SignalRMethodRequestDeleted, new { id }, cancellationToken);
 
         return NoContent();
     }

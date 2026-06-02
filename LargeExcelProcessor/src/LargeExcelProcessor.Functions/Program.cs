@@ -1,3 +1,4 @@
+using LargeExcelProcessor.Infrastructure;
 using LargeExcelProcessor.Infrastructure.Data;
 using Microsoft.Azure.Functions.Worker.Builder;
 using Microsoft.EntityFrameworkCore;
@@ -11,12 +12,12 @@ public class Program
 {
     public static void Main(string[] args)
     {
-        ExcelPackage.License.SetNonCommercialPersonal("Invoicing App");
+        ExcelPackage.License.SetNonCommercialPersonal(Constants.EpplusLicenseAppName);
         var builder = FunctionsApplication.CreateBuilder(args);
 
         builder.ConfigureFunctionsWebApplication();
 
-        var connectionString = Environment.GetEnvironmentVariable("ConnectionStrings__Default");
+        var connectionString = Environment.GetEnvironmentVariable(Constants.EnvVarConnectionStringsDefault);
 
         builder.Services.AddDbContext<AppDbContext>(opts =>
             opts.UseNpgsql(connectionString));

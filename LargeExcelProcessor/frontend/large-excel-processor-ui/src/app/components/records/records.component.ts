@@ -1,4 +1,5 @@
-import { Component, OnInit, OnDestroy } from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, DestroyRef, inject, OnDestroy } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { MatTableModule, MatTableDataSource } from '@angular/material/table';
 import { Subscription } from 'rxjs';
@@ -18,8 +19,9 @@ import { formatElapsed } from '../../shared/format-duration';
   imports: [CommonModule, MatTableModule, SectionHeaderComponent, DataTableComponent, FilterBarComponent, ProgressBarComponent],
   templateUrl: './records.component.html',
   styleUrl: './records.component.scss',
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class RecordsComponent implements OnInit, OnDestroy {
+export class RecordsComponent implements OnDestroy {
   displayedColumns: string[] = [
     '#', 'id', 'invoiceNumber', 'vendorName', 'customerName',
     'totalAmount', 'currencyCode', 'status', 'dueDate',
@@ -42,14 +44,14 @@ export class RecordsComponent implements OnInit, OnDestroy {
   currentPageSize = 50;
   private exportClickTime = 0;
   private exportSub: Subscription | null = null;
+  private destroyRef = inject(DestroyRef);
+  private cdr = inject(ChangeDetectorRef);
 
   constructor(
     private excelService: ExcelService,
     private toastService: ToastService,
     private signalrService: SignalrService,
-  ) {}
-
-  ngOnInit(): void {
+  ) {
     this.loadPage();
   }
 
@@ -86,15 +88,18 @@ export class RecordsComponent implements OnInit, OnDestroy {
         this.dateFrom || undefined,
         this.dateTo || undefined
       )
+      .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (result) => {
           this.dataSource.data = result.items;
           this.totalCount = result.totalCount;
           this.loading = false;
+          this.cdr.markForCheck();
         },
         error: (err) => {
           this.error = err.message ?? 'Failed to load records.';
           this.loading = false;
+          this.cdr.markForCheck();
         },
       });
   }
@@ -112,14 +117,17 @@ export class RecordsComponent implements OnInit, OnDestroy {
         this.dateFrom || undefined,
         this.dateTo || undefined
       )
+      .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (result) => {
           this.exporting = false;
+          this.cdr.markForCheck();
           this.toastService.show('export queued', 'info');
           this.listenForExportCompletion(result.id);
         },
         error: () => {
           this.exporting = false;
+          this.cdr.markForCheck();
         },
       });
   }
@@ -127,7 +135,9 @@ export class RecordsComponent implements OnInit, OnDestroy {
   private listenForExportCompletion(jobId: string): void {
     this.signalrService.connect().then(() => {
       this.exportSub?.unsubscribe();
-      this.exportSub = this.signalrService.notifications$.subscribe((n) => {
+      this.exportSub = this.signalrService.notifications$.pipe(
+        takeUntilDestroyed(this.destroyRef),
+      ).subscribe((n) => {
         if (n.jobId === jobId) {
           const elapsed = this.exportClickTime ? ` in ${formatElapsed(this.exportClickTime)}` : '';
           if (n.status === 'Processing' && n.totalRows && n.totalRows > 0) {
@@ -142,9 +152,14 @@ export class RecordsComponent implements OnInit, OnDestroy {
             this.exporting = false;
             this.toastService.show(`export failed: ${n.errorMessage}${elapsed}`, 'error');
           }
+          this.cdr.markForCheck();
         }
       });
     });
+  }
+
+  rowNumber(index: number): number {
+    return (this.currentPage - 1) * this.currentPageSize + index + 1;
   }
 
   ngOnDestroy(): void {

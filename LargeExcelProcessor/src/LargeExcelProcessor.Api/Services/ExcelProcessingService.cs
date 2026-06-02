@@ -1,5 +1,4 @@
 using LargeExcelProcessor.Infrastructure.Data;
-using LargeExcelProcessor.Infrastructure.Models;
 using LargeExcelProcessor.Shared.Models;
 using Microsoft.EntityFrameworkCore;
 
@@ -16,7 +15,9 @@ public class ExcelProcessingService : IExcelProcessingService
 
     public async Task<PagedResult<InvoiceRecordDto>> GetRecordsAsync(int page, int pageSize, string? search, string? status, DateTime? dateFrom, DateTime? dateTo, CancellationToken cancellationToken)
     {
-        var query = ApplyFilters(_db.InvoiceRecords.AsQueryable(), search, status, dateFrom, dateTo)
+        var query = _db.InvoiceRecords
+            .AsQueryable()
+            .ApplyFilters(search, status, dateFrom, dateTo)
             .OrderByDescending(r => r.CreatedAt);
 
         var totalCount = await query.CountAsync(cancellationToken);
@@ -54,27 +55,4 @@ public class ExcelProcessingService : IExcelProcessingService
             PageSize = pageSize
         };
     }
-
-    private static IQueryable<InvoiceRecord> ApplyFilters(IQueryable<InvoiceRecord> query, string? search, string? status, DateTime? dateFrom, DateTime? dateTo)
-    {
-        if (!string.IsNullOrWhiteSpace(search))
-        {
-            var s = search.Trim().ToLower();
-            query = query.Where(r => r.InvoiceNumber.ToLower().Contains(s)
-                || r.VendorName.ToLower().Contains(s)
-                || r.CustomerName.ToLower().Contains(s));
-        }
-
-        if (!string.IsNullOrWhiteSpace(status))
-            query = query.Where(r => r.Status == status);
-
-        if (dateFrom.HasValue)
-            query = query.Where(r => r.InvoiceDate >= DateTime.SpecifyKind(dateFrom.Value, DateTimeKind.Utc));
-
-        if (dateTo.HasValue)
-            query = query.Where(r => r.InvoiceDate <= DateTime.SpecifyKind(dateTo.Value, DateTimeKind.Utc));
-
-        return query;
-    }
-
 }
