@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/LargeExcelProcessor.Api/LargeExcelProcessor.Api.csproj" />
+    <Project Path="src/LargeExcelProcessor.Functions/LargeExcelProcessor.Functions.csproj" />
+    <Project Path="src/LargeExcelProcessor.Infrastructure/LargeExcelProcessor.Infrastructure.csproj" />
+    <Project Path="src/LargeExcelProcessor.Shared/LargeExcelProcessor.Shared.csproj" />
+  </Folder>
+</Solution>

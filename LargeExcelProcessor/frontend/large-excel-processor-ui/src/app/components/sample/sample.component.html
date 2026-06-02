@@ -1,0 +1,41 @@
+<div class="section-header">generate sample excel</div>
+
+<p class="description">
+  Create a sample <span class="highlight">.xlsx</span> file with realistic data matching the
+  current invoice data model. The file is compatible with the upload processor.
+</p>
+
+<div class="form-row">
+  <label class="input-label" for="countInput">number of records</label>
+  <input
+    id="countInput"
+    type="number"
+    [(ngModel)]="count"
+    min="1"
+    max="10000"
+    class="input"
+    placeholder="e.g. 100"
+  />
+  <span class="input-hint">min 1 &middot; max 10,000</span>
+</div>
+
+<div class="actions">
+  <button
+    type="button"
+    class="btn btn-primary"
+    (click)="generate()"
+    [disabled]="generating"
+  >
+    @if (generating) {
+      [*] generating&hellip;
+    } @else {
+      [+] generate &amp; download
+    }
+  </button>
+</div>
+
+@if (error) {
+  <div class="result-block result-error">
+    <p><span class="marker-bracket">[</span><span class="marker-x">x</span><span class="marker-bracket">]</span> {{ error }}</p>
+  </div>
+}

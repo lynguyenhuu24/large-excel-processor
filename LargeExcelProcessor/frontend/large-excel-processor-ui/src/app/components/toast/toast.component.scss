@@ -1,0 +1,31 @@
+.toast {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 1000;
+  padding: 8px 16px;
+  border: 1px solid var(--hairline);
+  background: var(--canvas);
+  font-family: var(--font-family);
+  font-size: 14px;
+  color: var(--ink);
+  line-height: 2;
+  animation: fadeIn 0.2s ease-in;
+}
+
+.toast-success {
+  border-color: var(--success);
+}
+
+.toast-error {
+  border-color: var(--danger);
+}
+
+.toast-info {
+  border-color: var(--hairline-strong);
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}

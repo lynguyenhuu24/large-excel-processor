@@ -1,0 +1,14 @@
+C:\Users\Ly\Desktop\New folder\LargeExcelProcessor\src\LargeExcelProcessor.Shared\bin\Debug\net8.0\LargeExcelProcessor.Shared.deps.json
+C:\Users\Ly\Desktop\New folder\LargeExcelProcessor\src\LargeExcelProcessor.Shared\bin\Debug\net8.0\LargeExcelProcessor.Shared.dll
+C:\Users\Ly\Desktop\New folder\LargeExcelProcessor\src\LargeExcelProcessor.Shared\bin\Debug\net8.0\LargeExcelProcessor.Shared.pdb
+C:\Users\Ly\Desktop\New folder\LargeExcelProcessor\src\LargeExcelProcessor.Shared\obj\Debug\net8.0\LargeExcelProcessor.Shared.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\Ly\Desktop\New folder\LargeExcelProcessor\src\LargeExcelProcessor.Shared\obj\Debug\net8.0\LargeExcelProcessor.Shared.AssemblyInfoInputs.cache
+C:\Users\Ly\Desktop\New folder\LargeExcelProcessor\src\LargeExcelProcessor.Shared\obj\Debug\net8.0\LargeExcelProcessor.Shared.AssemblyInfo.cs
+C:\Users\Ly\Desktop\New folder\LargeExcelProcessor\src\LargeExcelProcessor.Shared\obj\Debug\net8.0\LargeExcelProcessor.Shared.csproj.CoreCompileInputs.cache
+C:\Users\Ly\Desktop\New folder\LargeExcelProcessor\src\LargeExcelProcessor.Shared\obj\Debug\net8.0\LargeExcelProcessor.Shared.dll
+C:\Users\Ly\Desktop\New folder\LargeExcelProcessor\src\LargeExcelProcessor.Shared\obj\Debug\net8.0\refint\LargeExcelProcessor.Shared.dll
+C:\Users\Ly\Desktop\New folder\LargeExcelProcessor\src\LargeExcelProcessor.Shared\obj\Debug\net8.0\LargeExcelProcessor.Shared.pdb
+C:\Users\Ly\Desktop\New folder\LargeExcelProcessor\src\LargeExcelProcessor.Shared\obj\Debug\net8.0\ref\LargeExcelProcessor.Shared.dll
+C:\Users\Ly\Desktop\New folder\LargeExcelProcessor\src\LargeExcelProcessor.Functions\bin\output\LargeExcelProcessor.Shared.deps.json
+C:\Users\Ly\Desktop\New folder\LargeExcelProcessor\src\LargeExcelProcessor.Functions\bin\output\LargeExcelProcessor.Shared.dll
+C:\Users\Ly\Desktop\New folder\LargeExcelProcessor\src\LargeExcelProcessor.Functions\bin\output\LargeExcelProcessor.Shared.pdb

@@ -1,0 +1,8 @@
+@if (message) {
+  <div class="toast" [class.toast-success]="message.type === 'success'"
+       [class.toast-error]="message.type === 'error'"
+       [class.toast-info]="message.type === 'info'">
+    <span class="{{ markerClass }}">{{ marker }}</span>
+    {{ message.text }}
+  </div>
+}

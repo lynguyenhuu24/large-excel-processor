@@ -1,0 +1,53 @@
+<div class="section-header">import excel file</div>
+
+<div class="drop-zone"
+     [class.drag-over]="dragOver"
+     [class.has-file]="!!selectedFile"
+     (dragover)="onDragOver($event)"
+     (dragleave)="onDragLeave()"
+     (drop)="onDrop($event)">
+  @if (!selectedFile) {
+    <div class="drop-content">
+      <p>drop <span class="highlight">.xlsx</span> file here, or</p>
+      <button type="button" class="btn" (click)="fileInput.click()">
+        browse files
+      </button>
+      <input #fileInput type="file" accept=".xlsx" hidden (change)="onFileSelected($event)" />
+    </div>
+  } @else {
+    <div class="file-selected">
+      <p class="file-name"><span class="marker-bracket">[</span><span class="marker-plus">*</span><span class="marker-bracket">]</span> {{ selectedFile.name }}</p>
+      <p class="file-size">{{ (selectedFile.size / 1024 / 1024).toFixed(2) }} MB</p>
+      <div class="actions">
+        <button type="button" class="btn btn-primary" (click)="upload()" [disabled]="uploading">
+          upload
+        </button>
+        <button type="button" class="btn" (click)="reset()">cancel</button>
+      </div>
+    </div>
+  }
+</div>
+
+@if (uploading) {
+  <div class="progress-section">
+    <p class="progress-bar">{{ progressBar }}</p>
+    <p class="progress-text">{{ progress }}% uploaded</p>
+  </div>
+}
+
+@if (uploaded) {
+  <div class="result-block result-success">
+    <p><span class="marker-bracket">[</span><span class="marker-plus">+</span><span class="marker-bracket">]</span> file uploaded to processing queue</p>
+    @if (processingStatus) {
+      <p class="processing-status">[<span class="marker-plus">+</span>] {{ processingStatus }}</p>
+    } @else {
+      <p class="processing-status">[*] waiting for processing...</p>
+    }
+  </div>
+}
+
+@if (error) {
+  <div class="result-block result-error">
+    <p><span class="marker-bracket">[</span><span class="marker-x">x</span><span class="marker-bracket">]</span> {{ error }}</p>
+  </div>
+}
