@@ -27,17 +27,22 @@ public class NotifyController : ControllerBase
             return NotFound();
 
         job.Status = notification.Status;
-        job.TotalRows = notification.TotalRows;
-        job.ImportedRows = notification.ImportedRows;
-        job.ErrorMessage = notification.ErrorMessage;
+        if (notification.TotalRows.HasValue) job.TotalRows = notification.TotalRows;
+        if (notification.ImportedRows.HasValue) job.ImportedRows = notification.ImportedRows;
+        if (notification.FileSize > 0) job.FileSize = notification.FileSize;
+        if (notification.ResultBlobUri != null) job.ResultBlobUri = notification.ResultBlobUri;
+        if (notification.ErrorMessage != null) job.ErrorMessage = notification.ErrorMessage;
 
         if (notification.Status is "Completed" or "Failed")
-            job.CompletedAt = DateTime.UtcNow;
+            job.CompletedAt = notification.CompletedAt ?? DateTime.UtcNow;
 
         await _db.SaveChangesAsync(cancellationToken);
 
         await _hubContext.Clients.Group(notification.JobId.ToString()).SendAsync(
             "ProcessingCompleted", notification, cancellationToken);
+
+        await _hubContext.Clients.Group("requests").SendAsync(
+            "RequestStatusChanged", notification, cancellationToken);
 
         return Ok();
     }

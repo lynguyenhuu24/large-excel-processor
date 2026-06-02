@@ -1,10 +1,11 @@
-using ClosedXML.Excel;
+using System.Globalization;
+using System.Text.Json;
 using LargeExcelProcessor.Infrastructure.Data;
 using LargeExcelProcessor.Infrastructure.Models;
 using LargeExcelProcessor.Shared.Models;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Extensions.Logging;
-using System.Text.Json;
+using OfficeOpenXml;
 
 namespace LargeExcelProcessor.Functions.Functions;
 
@@ -26,7 +27,7 @@ public class ProcessExcelFunction
 
     [Function("ProcessExcel")]
     public async Task Run(
-        [BlobTrigger("file-requests/uploads/{name}", Connection = "AzureWebJobsStorage")] Stream blobStream,
+        [BlobTrigger("file-requests/uploads/{name}", Connection = "AzureWebJobsStorage")] byte[] blobBytes,
         string name)
     {
         _logger.LogInformation("Processing blob: {Name}", name);
@@ -50,7 +51,7 @@ public class ProcessExcelFunction
 
         try
         {
-            var result = await ProcessExcelStream(blobStream, jobId.Value.ToString());
+            var result = await ProcessExcelStream(new MemoryStream(blobBytes), jobId.Value.ToString(), jobId.Value);
 
             fileRequest.Status = "Completed";
             fileRequest.TotalRows = result.TotalRows;
@@ -63,7 +64,8 @@ public class ProcessExcelFunction
                 JobId = jobId.Value,
                 Status = "Completed",
                 TotalRows = result.TotalRows,
-                ImportedRows = result.ImportedRows
+                ImportedRows = result.ImportedRows,
+                CompletedAt = fileRequest.CompletedAt
             });
         }
         catch (Exception ex)
@@ -79,46 +81,65 @@ public class ProcessExcelFunction
             {
                 JobId = jobId.Value,
                 Status = "Failed",
-                ErrorMessage = ex.Message
+                ErrorMessage = ex.Message,
+                CompletedAt = fileRequest.CompletedAt
             });
         }
     }
 
-    private async Task<UploadResultDto> ProcessExcelStream(Stream stream, string batchId)
+    private async Task<UploadResultDto> ProcessExcelStream(Stream stream, string batchId, Guid jobId)
     {
         var result = new UploadResultDto();
         var records = new List<InvoiceRecord>();
         const int batchSize = 1000;
+        var lastNotify = DateTime.MinValue;
 
-        using var workbook = new XLWorkbook(stream);
-        var worksheet = workbook.Worksheet(1);
-        var range = worksheet.RangeUsed();
-        if (range is null)
+        using var package = new ExcelPackage(stream);
+        var worksheet = package.Workbook.Worksheets[0];
+        var rowCount = worksheet.Dimension?.Rows ?? 0;
+        var totalRows = Math.Max(0, rowCount - 1);
+
+        if (totalRows == 0)
             return result;
 
-        var rows = range.RowsUsed().Skip(1);
+        var fileRequest = await _db.FileRequests.FindAsync(jobId);
+        if (fileRequest != null)
+        {
+            fileRequest.TotalRows = totalRows;
+            await _db.SaveChangesAsync();
+        }
 
-        foreach (var row in rows)
+        await NotifyAsync(new NotificationDto
+        {
+            JobId = jobId,
+            Status = "Processing",
+            TotalRows = totalRows
+        });
+
+        for (int row = 2; row <= rowCount; row++)
         {
             try
             {
+                if (worksheet.Cells[row, 1].Value == null)
+                    continue;
+
                 records.Add(new InvoiceRecord
                 {
-                    InvoiceNumber = row.Cell(1).GetString().Trim(),
-                    InvoiceDate = DateTime.SpecifyKind(ParseDate(row.Cell(2)), DateTimeKind.Utc),
-                    VendorName = row.Cell(3).GetString().Trim(),
-                    VendorTaxId = row.Cell(4).GetString().Trim(),
-                    CustomerName = row.Cell(5).GetString().Trim(),
-                    CustomerEmail = row.Cell(6).GetString().Trim(),
-                    LineItemCount = ParseInt(row.Cell(7)),
-                    Subtotal = ParseDecimal(row.Cell(8)),
-                    TaxAmount = ParseDecimal(row.Cell(9)),
-                    DiscountAmount = ParseDecimal(row.Cell(10)),
-                    TotalAmount = ParseDecimal(row.Cell(11)),
-                    CurrencyCode = row.Cell(12).GetString().Trim(),
-                    DueDate = DateTime.SpecifyKind(ParseDate(row.Cell(13)), DateTimeKind.Utc),
-                    Status = row.Cell(14).GetString().Trim(),
-                    Notes = row.Cell(15).GetString().Trim(),
+                    InvoiceNumber = worksheet.Cells[row, 1].Value?.ToString()?.Trim() ?? "",
+                    InvoiceDate = DateTime.SpecifyKind(ParseDate(worksheet.Cells[row, 2]), DateTimeKind.Utc),
+                    VendorName = worksheet.Cells[row, 3].Value?.ToString()?.Trim() ?? "",
+                    VendorTaxId = worksheet.Cells[row, 4].Value?.ToString()?.Trim() ?? "",
+                    CustomerName = worksheet.Cells[row, 5].Value?.ToString()?.Trim() ?? "",
+                    CustomerEmail = worksheet.Cells[row, 6].Value?.ToString()?.Trim() ?? "",
+                    LineItemCount = ParseInt(worksheet.Cells[row, 7]),
+                    Subtotal = ParseDecimal(worksheet.Cells[row, 8]),
+                    TaxAmount = ParseDecimal(worksheet.Cells[row, 9]),
+                    DiscountAmount = ParseDecimal(worksheet.Cells[row, 10]),
+                    TotalAmount = ParseDecimal(worksheet.Cells[row, 11]),
+                    CurrencyCode = worksheet.Cells[row, 12].Value?.ToString()?.Trim() ?? "",
+                    DueDate = DateTime.SpecifyKind(ParseDate(worksheet.Cells[row, 13]), DateTimeKind.Utc),
+                    Status = worksheet.Cells[row, 14].Value?.ToString()?.Trim() ?? "",
+                    Notes = worksheet.Cells[row, 15].Value?.ToString()?.Trim() ?? "",
                     BatchId = batchId
                 });
                 result.TotalRows++;
@@ -129,6 +150,19 @@ public class ProcessExcelFunction
                     await _db.SaveChangesAsync();
                     result.ImportedRows += records.Count;
                     records.Clear();
+
+                    var now = DateTime.UtcNow;
+                    if ((now - lastNotify).TotalSeconds >= 1)
+                    {
+                        lastNotify = now;
+                        await NotifyAsync(new NotificationDto
+                        {
+                            JobId = jobId,
+                            Status = "Processing",
+                            TotalRows = totalRows,
+                            ImportedRows = result.ImportedRows
+                        });
+                    }
                 }
             }
             catch (Exception ex)
@@ -175,24 +209,26 @@ public class ProcessExcelFunction
         return null;
     }
 
-    private static decimal ParseDecimal(IXLCell cell)
+    private static decimal ParseDecimal(ExcelRange cell)
     {
-        if (cell.TryGetValue<decimal>(out var value)) return value;
-        if (decimal.TryParse(cell.GetString(), out var parsed)) return parsed;
+        if (cell.Value is decimal d) return d;
+        if (cell.Value is double db) return (decimal)db;
+        if (decimal.TryParse(cell.Text, NumberStyles.Any, CultureInfo.InvariantCulture, out var parsed)) return parsed;
         return 0;
     }
 
-    private static int ParseInt(IXLCell cell)
+    private static int ParseInt(ExcelRange cell)
     {
-        if (cell.TryGetValue<int>(out var value)) return value;
-        if (int.TryParse(cell.GetString(), out var parsed)) return parsed;
+        if (cell.Value is int i) return i;
+        if (cell.Value is double db) return (int)db;
+        if (int.TryParse(cell.Text, out var parsed)) return parsed;
         return 0;
     }
 
-    private static DateTime ParseDate(IXLCell cell)
+    private static DateTime ParseDate(ExcelRange cell)
     {
-        if (cell.TryGetValue<DateTime>(out var date)) return date;
-        if (DateTime.TryParse(cell.GetString(), out var parsed)) return parsed;
+        if (cell.Value is DateTime dt) return dt;
+        if (DateTime.TryParse(cell.Text, out var parsed)) return parsed;
         return DateTime.MinValue;
     }
 }

@@ -74,6 +74,71 @@ a {
   margin-bottom: 16px;
 }
 
+.btn {
+  font-family: var(--font-family);
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 2;
+  letter-spacing: 0;
+  height: 32px;
+  padding: 0 14px;
+  border-radius: 4px;
+  cursor: pointer;
+  border: 1px solid var(--hairline-strong);
+  background: var(--canvas);
+  color: var(--ink);
+  transition: background 0.15s;
+}
+
+.btn:hover {
+  background: var(--surface-soft);
+}
+
+.btn-sm {
+  height: 32px;
+  padding: 0 14px;
+  font-size: 14px;
+}
+
+.btn-primary {
+  background: var(--ink);
+  color: var(--canvas);
+  border: none;
+}
+
+.btn-primary:disabled {
+  background: var(--surface-card);
+  color: var(--ash);
+}
+
+.loading-text {
+  font-family: var(--font-family);
+  color: var(--mute);
+  text-align: center;
+  padding: 48px 0;
+}
+
+.error-text {
+  font-family: var(--font-family);
+  color: var(--danger);
+  text-align: center;
+  padding: 24px 0;
+}
+
+.result-count {
+  color: var(--mute);
+  font-size: 14px;
+  margin-bottom: 12px;
+}
+
+.table-wrapper {
+  overflow-x: auto;
+}
+
+.full-width {
+  width: 100%;
+}
+
 .marker-plus { color: var(--success); }
 .marker-minus { color: var(--mute); }
 .marker-x { color: var(--danger); }
@@ -132,6 +197,28 @@ html {
 
 .mat-mdc-row {
   border-bottom: 1px solid var(--hairline) !important;
+}
+
+.mat-mdc-header-cell {
+  font-family: var(--font-family) !important;
+  font-size: 14px !important;
+  font-weight: 700 !important;
+  color: var(--ink) !important;
+  text-transform: lowercase;
+  border-bottom-color: var(--hairline-strong) !important;
+  padding: 8px 12px !important;
+}
+
+.mat-mdc-cell {
+  font-family: var(--font-family) !important;
+  font-size: 14px !important;
+  color: var(--body) !important;
+  border-bottom-color: var(--hairline) !important;
+  padding: 8px 12px !important;
+}
+
+.mat-mdc-row:last-child .mat-mdc-cell {
+  border-bottom: none;
 }
 
 .mat-mdc-paginator {

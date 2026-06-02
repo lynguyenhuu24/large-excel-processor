@@ -2,11 +2,13 @@ import { Component } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ExcelService } from '../../services/excel.service';
+import { SectionHeaderComponent } from '../../shared/section-header/section-header.component';
+import { StatusBannerComponent } from '../../shared/status-banner/status-banner.component';
 
 @Component({
   selector: 'app-sample',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, SectionHeaderComponent, StatusBannerComponent],
   templateUrl: './sample.component.html',
   styleUrl: './sample.component.scss',
 })

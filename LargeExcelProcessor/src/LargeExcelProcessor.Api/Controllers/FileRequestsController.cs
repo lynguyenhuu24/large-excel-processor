@@ -1,7 +1,9 @@
+using LargeExcelProcessor.Api.Hubs;
 using LargeExcelProcessor.Api.Services;
 using LargeExcelProcessor.Infrastructure.Data;
 using LargeExcelProcessor.Shared.Models;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 
 namespace LargeExcelProcessor.Api.Controllers;
@@ -12,12 +14,14 @@ public class FileRequestsController : ControllerBase
 {
     private readonly AppDbContext _db;
     private readonly IBlobStorageService _blob;
+    private readonly IHubContext<UploadHub> _hubContext;
     private readonly ILogger<FileRequestsController> _logger;
 
-    public FileRequestsController(AppDbContext db, IBlobStorageService blob, ILogger<FileRequestsController> logger)
+    public FileRequestsController(AppDbContext db, IBlobStorageService blob, IHubContext<UploadHub> hubContext, ILogger<FileRequestsController> logger)
     {
         _db = db;
         _blob = blob;
+        _hubContext = hubContext;
         _logger = logger;
     }
 
@@ -86,6 +90,27 @@ public class FileRequestsController : ControllerBase
         return Ok(request);
     }
 
+    [HttpGet("{id:guid}/download")]
+    public async Task<IActionResult> Download(Guid id, CancellationToken cancellationToken)
+    {
+        var fileRequest = await _db.FileRequests.FindAsync([id], cancellationToken);
+        if (fileRequest is null)
+            return NotFound();
+
+        var blobUri = fileRequest.RequestType == "Export"
+            ? fileRequest.ResultBlobUri
+            : fileRequest.BlobUri;
+
+        if (string.IsNullOrEmpty(blobUri))
+            return NotFound();
+
+        var stream = await _blob.DownloadAsync(blobUri, cancellationToken);
+        if (stream is null)
+            return NotFound();
+
+        return File(stream, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", fileRequest.FileName);
+    }
+
     [HttpDelete("{id:guid}")]
     public async Task<IActionResult> Delete(Guid id, CancellationToken cancellationToken)
     {
@@ -115,6 +140,8 @@ public class FileRequestsController : ControllerBase
         await _db.SaveChangesAsync(cancellationToken);
 
         _logger.LogInformation("Deleted file request {Id} with {Rows} imported rows", id, importedRows);
+
+        await _hubContext.Clients.Group("requests").SendAsync("RequestDeleted", new { id }, cancellationToken);
 
         return NoContent();
     }

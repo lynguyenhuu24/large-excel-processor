@@ -1,0 +1,64 @@
+## .NET
+bin/
+obj/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+.vs/
+*.DotSettings.user
+
+## Node / Angular
+node_modules/
+dist/
+.angular/
+*.js.map
+*.ts.map
+
+## IDE
+.idea/
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+*.swp
+*.swo
+
+## OS
+Thumbs.db
+.DS_Store
+Desktop.ini
+
+## Secrets
+appsettings.*.local.json
+appsettings.*.Development.json
+*.local.*
+secrets.json
+
+## NuGet
+packages/
+*.nupkg
+
+## Build
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+build/
+[Bb]in/
+[Oo]bj/
+*.exe
+*.dll
+*.pdb
+*.xml
+*.nupkg
+project.lock.json
+
+## Azure Functions
+local.settings.json
+
+## Rider
+.idea/
+*.sln.iml
+
+## Logs
+*.log

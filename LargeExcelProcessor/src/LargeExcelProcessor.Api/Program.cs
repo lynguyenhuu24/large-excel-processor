@@ -2,6 +2,7 @@ using LargeExcelProcessor.Api.Hubs;
 using LargeExcelProcessor.Api.Services;
 using LargeExcelProcessor.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
+using OfficeOpenXml;
 
 namespace LargeExcelProcessor.Api;
 
@@ -9,6 +10,7 @@ public class Program
 {
     public static void Main(string[] args)
     {
+        ExcelPackage.License.SetNonCommercialPersonal("Invoicing App");
         var builder = WebApplication.CreateBuilder(args);
 
         builder.Services.AddControllers();

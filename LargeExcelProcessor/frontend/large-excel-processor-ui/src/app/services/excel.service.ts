@@ -33,13 +33,35 @@ export class ExcelService {
 
   getRecords(
     page: number = 1,
-    pageSize: number = 50
+    pageSize: number = 50,
+    search?: string,
+    status?: string,
+    dateFrom?: string,
+    dateTo?: string
   ): Observable<PagedResult<InvoiceRecord>> {
-    const params = new HttpParams()
+    let params = new HttpParams()
       .set('page', page.toString())
       .set('pageSize', pageSize.toString());
+    if (search) params = params.set('search', search);
+    if (status) params = params.set('status', status);
+    if (dateFrom) params = params.set('dateFrom', dateFrom);
+    if (dateTo) params = params.set('dateTo', dateTo);
     return this.http.get<PagedResult<InvoiceRecord>>(`${this.apiUrl}/records`, {
       params,
+    });
+  }
+
+  exportRecords(
+    search?: string,
+    status?: string,
+    dateFrom?: string,
+    dateTo?: string
+  ): Observable<FileRequest> {
+    return this.http.post<FileRequest>(`${this.apiUrl}/export`, {
+      search,
+      status,
+      dateFrom,
+      dateTo,
     });
   }
 

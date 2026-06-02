@@ -13,4 +13,14 @@ public class UploadHub : Hub
     {
         await Groups.RemoveFromGroupAsync(Context.ConnectionId, jobId);
     }
+
+    public async Task SubscribeToRequests()
+    {
+        await Groups.AddToGroupAsync(Context.ConnectionId, "requests");
+    }
+
+    public async Task UnsubscribeFromRequests()
+    {
+        await Groups.RemoveFromGroupAsync(Context.ConnectionId, "requests");
+    }
 }

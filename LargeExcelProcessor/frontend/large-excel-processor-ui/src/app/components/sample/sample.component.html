@@ -1,4 +1,4 @@
-<div class="section-header">generate sample excel</div>
+<app-section-header title="generate sample excel" />
 
 <p class="description">
   Create a sample <span class="highlight">.xlsx</span> file with realistic data matching the
@@ -34,8 +34,4 @@
   </button>
 </div>
 
-@if (error) {
-  <div class="result-block result-error">
-    <p><span class="marker-bracket">[</span><span class="marker-x">x</span><span class="marker-bracket">]</span> {{ error }}</p>
-  </div>
-}
+<app-status-banner type="error" [message]="error" />

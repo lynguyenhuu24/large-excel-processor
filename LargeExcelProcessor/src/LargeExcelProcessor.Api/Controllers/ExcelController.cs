@@ -1,11 +1,16 @@
 using System.Globalization;
-using ClosedXML.Excel;
+using System.Text.Json;
+using Azure.Storage.Queues;
+using Azure.Storage.Queues.Models;
+using LargeExcelProcessor.Api.Hubs;
 using LargeExcelProcessor.Api.Services;
 using LargeExcelProcessor.Infrastructure.Data;
 using LargeExcelProcessor.Infrastructure.Models;
 using LargeExcelProcessor.Shared.Models;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
+using OfficeOpenXml;
 
 namespace LargeExcelProcessor.Api.Controllers;
 
@@ -16,12 +21,16 @@ public class ExcelController : ControllerBase
     private readonly IBlobStorageService _blob;
     private readonly AppDbContext _db;
     private readonly IExcelProcessingService _excelService;
+    private readonly IConfiguration _configuration;
+    private readonly IHubContext<UploadHub> _hubContext;
 
-    public ExcelController(IBlobStorageService blob, AppDbContext db, IExcelProcessingService excelService)
+    public ExcelController(IBlobStorageService blob, AppDbContext db, IExcelProcessingService excelService, IConfiguration configuration, IHubContext<UploadHub> hubContext)
     {
         _blob = blob;
         _db = db;
         _excelService = excelService;
+        _configuration = configuration;
+        _hubContext = hubContext;
     }
 
     [HttpPost("upload")]
@@ -54,7 +63,7 @@ public class ExcelController : ControllerBase
         _db.FileRequests.Add(fileRequest);
         await _db.SaveChangesAsync(cancellationToken);
 
-        return Ok(new FileRequestDto
+        var dto = new FileRequestDto
         {
             Id = fileRequest.Id,
             RequestType = fileRequest.RequestType,
@@ -63,17 +72,80 @@ public class ExcelController : ControllerBase
             FileSize = fileRequest.FileSize,
             BlobUri = fileRequest.BlobUri,
             CreatedAt = fileRequest.CreatedAt
-        });
+        };
+
+        await _hubContext.Clients.Group("requests").SendAsync("NewRequest", dto, cancellationToken);
+
+        return Ok(dto);
     }
 
     [HttpGet("records")]
     public async Task<ActionResult<PagedResult<InvoiceRecordDto>>> GetRecords(
         CancellationToken cancellationToken,
         [FromQuery] int page = 1,
-        [FromQuery] int pageSize = 50)
+        [FromQuery] int pageSize = 50,
+        [FromQuery] string? search = null,
+        [FromQuery] string? status = null,
+        [FromQuery] DateTime? dateFrom = null,
+        [FromQuery] DateTime? dateTo = null)
     {
-        var result = await _excelService.GetRecordsAsync(page, pageSize, cancellationToken);
+        var result = await _excelService.GetRecordsAsync(page, pageSize, search, status, dateFrom, dateTo, cancellationToken);
         return Ok(result);
+    }
+
+    [HttpPost("export")]
+    public async Task<ActionResult<FileRequestDto>> Export(
+        [FromBody] ExportRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        var jobId = Guid.NewGuid();
+
+        var fileRequest = new FileRequest
+        {
+            Id = jobId,
+            RequestType = "Export",
+            Status = "Pending",
+            FileName = $"invoices-{(request.Status ?? "all")}-{DateTime.UtcNow:yyyyMMdd-HHmmss}.xlsx",
+            FileSize = 0,
+            CreatedAt = DateTime.UtcNow
+        };
+
+        _db.FileRequests.Add(fileRequest);
+        await _db.SaveChangesAsync(cancellationToken);
+
+        try
+        {
+            var queueConnection = _configuration.GetConnectionString("AzureWebJobsStorage")
+                ?? "UseDevelopmentStorage=true;DevelopmentStorageProxyUri=http://localhost:10000";
+            var queueClient = new QueueClient(queueConnection, "export-requests",
+                new QueueClientOptions { MessageEncoding = QueueMessageEncoding.Base64 });
+            await queueClient.CreateIfNotExistsAsync(cancellationToken: cancellationToken);
+
+            var messageObj = new { jobId, request.Search, request.Status, request.DateFrom, request.DateTo };
+            var messageJson = JsonSerializer.Serialize(messageObj, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
+            await queueClient.SendMessageAsync(messageJson, cancellationToken: cancellationToken);
+        }
+        catch
+        {
+            _db.FileRequests.Remove(fileRequest);
+            await _db.SaveChangesAsync(cancellationToken);
+            throw;
+        }
+
+        var dto = new FileRequestDto
+        {
+            Id = fileRequest.Id,
+            RequestType = fileRequest.RequestType,
+            Status = fileRequest.Status,
+            FileName = fileRequest.FileName,
+            FileSize = fileRequest.FileSize,
+            BlobUri = fileRequest.BlobUri,
+            CreatedAt = fileRequest.CreatedAt
+        };
+
+        await _hubContext.Clients.Group("requests").SendAsync("NewRequest", dto, cancellationToken);
+
+        return Ok(dto);
     }
 
     [HttpGet("sample")]
@@ -89,8 +161,8 @@ public class ExcelController : ControllerBase
         var currencies = new[] { "USD", "USD", "USD", "EUR" };
         var notesPool = new[] { "", "", "", "", "Rush order", "Net 30 terms", "PO required", "International shipping", "Tax exempt" };
 
-        using var wb = new XLWorkbook();
-        var ws = wb.Worksheets.Add("Invoices");
+        using var package = new ExcelPackage();
+        var ws = package.Workbook.Worksheets.Add("Invoices");
 
         var headers = new[] {
             "InvoiceNumber", "InvoiceDate", "VendorName", "VendorTaxId", "CustomerName",
@@ -99,7 +171,7 @@ public class ExcelController : ControllerBase
         };
 
         for (int i = 0; i < headers.Length; i++)
-            ws.Cell(1, i + 1).Value = headers[i];
+            ws.Cells[1, i + 1].Value = headers[i];
 
         for (int row = 0; row < count; row++)
         {
@@ -115,28 +187,27 @@ public class ExcelController : ControllerBase
             var customer = customers[rng.Next(customers.Length)];
             var email = customer.ToLowerInvariant().Replace(' ', '.') + "@example.com";
 
-            // ReSharper disable once PossibleLossOfFraction
-            ws.Cell(row + 2, 1).Value = $"INV-{invDate.Year}-{row + 1:D6}";
-            ws.Cell(row + 2, 2).Value = invDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
-            ws.Cell(row + 2, 3).Value = vendor;
-            ws.Cell(row + 2, 4).Value = $"TAX-{rng.Next(10000, 99999)}";
-            ws.Cell(row + 2, 5).Value = customer;
-            ws.Cell(row + 2, 6).Value = email;
-            ws.Cell(row + 2, 7).Value = rng.Next(1, 21);
-            ws.Cell(row + 2, 8).Value = subtotal;
-            ws.Cell(row + 2, 9).Value = tax;
-            ws.Cell(row + 2, 10).Value = discount;
-            ws.Cell(row + 2, 11).Value = total;
-            ws.Cell(row + 2, 12).Value = currencies[rng.Next(currencies.Length)];
-            ws.Cell(row + 2, 13).Value = invDate.AddDays(30).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
-            ws.Cell(row + 2, 14).Value = statuses[rng.Next(statuses.Length)];
-            ws.Cell(row + 2, 15).Value = notesPool[rng.Next(notesPool.Length)];
+            ws.Cells[row + 2, 1].Value = $"INV-{invDate.Year}-{row + 1:D6}";
+            ws.Cells[row + 2, 2].Value = invDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+            ws.Cells[row + 2, 3].Value = vendor;
+            ws.Cells[row + 2, 4].Value = $"TAX-{rng.Next(10000, 99999)}";
+            ws.Cells[row + 2, 5].Value = customer;
+            ws.Cells[row + 2, 6].Value = email;
+            ws.Cells[row + 2, 7].Value = rng.Next(1, 21);
+            ws.Cells[row + 2, 8].Value = subtotal;
+            ws.Cells[row + 2, 9].Value = tax;
+            ws.Cells[row + 2, 10].Value = discount;
+            ws.Cells[row + 2, 11].Value = total;
+            ws.Cells[row + 2, 12].Value = currencies[rng.Next(currencies.Length)];
+            ws.Cells[row + 2, 13].Value = invDate.AddDays(30).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+            ws.Cells[row + 2, 14].Value = statuses[rng.Next(statuses.Length)];
+            ws.Cells[row + 2, 15].Value = notesPool[rng.Next(notesPool.Length)];
         }
 
-        ws.Columns().AdjustToContents();
+        ws.Cells[ws.Dimension.Address].AutoFitColumns();
 
         using var ms = new MemoryStream();
-        wb.SaveAs(ms);
+        package.SaveAs(ms);
         ms.Seek(0, SeekOrigin.Begin);
 
         return File(ms.ToArray(), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "sample-invoices.xlsx");

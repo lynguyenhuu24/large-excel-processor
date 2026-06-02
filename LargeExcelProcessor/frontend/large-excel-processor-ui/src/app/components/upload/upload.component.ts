@@ -5,11 +5,15 @@ import { Subscription } from 'rxjs';
 import { ExcelService } from '../../services/excel.service';
 import { ToastService } from '../../services/toast.service';
 import { SignalrService } from '../../services/signalr.service';
+import { SectionHeaderComponent } from '../../shared/section-header/section-header.component';
+import { StatusBannerComponent } from '../../shared/status-banner/status-banner.component';
+import { ProgressBarComponent } from '../../shared/progress-bar/progress-bar.component';
+import { formatElapsed } from '../../shared/format-duration';
 
 @Component({
   selector: 'app-upload',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, SectionHeaderComponent, StatusBannerComponent, ProgressBarComponent],
   templateUrl: './upload.component.html',
   styleUrl: './upload.component.scss',
 })
@@ -21,6 +25,10 @@ export class UploadComponent implements OnDestroy {
   error: string | null = null;
   dragOver = false;
   processingStatus: string | null = null;
+  processingProgress = 0;
+  processingTotalRows = 0;
+  processingImportedRows = 0;
+  private clickTime = 0;
   private sub: Subscription | null = null;
 
   constructor(
@@ -70,6 +78,7 @@ export class UploadComponent implements OnDestroy {
     this.error = null;
     this.uploaded = false;
     this.processingStatus = null;
+    this.clickTime = Date.now();
 
     this.excelService.upload(this.selectedFile).subscribe({
       next: (event) => {
@@ -91,18 +100,28 @@ export class UploadComponent implements OnDestroy {
   }
 
   private async subscribeToJob(jobId: string): Promise<void> {
+    this.sub?.unsubscribe();
+    this.processingProgress = 0;
+    this.processingTotalRows = 0;
+    this.processingImportedRows = 0;
     this.sub = this.signalrService.notifications$.subscribe((n) => {
       if (n.jobId === jobId) {
-        if (n.status === 'Completed') {
-          this.processingStatus = `completed — ${n.importedRows} rows imported`;
+        const elapsed = this.clickTime ? ` in ${formatElapsed(this.clickTime)}` : '';
+        if (n.status === 'Processing' && n.totalRows && n.totalRows > 0) {
+          this.processingTotalRows = n.totalRows;
+          this.processingImportedRows = n.importedRows ?? 0;
+          this.processingProgress = Math.round((this.processingImportedRows / n.totalRows) * 100);
+        } else if (n.status === 'Completed') {
+          this.processingProgress = 100;
+          this.processingStatus = `completed — ${n.importedRows} rows imported${elapsed}`;
           this.toastService.show(
-            `processing complete — ${n.importedRows} rows imported`,
+            `processing complete — ${n.importedRows} rows imported${elapsed}`,
             'success'
           );
         } else if (n.status === 'Failed') {
-          this.processingStatus = `failed: ${n.errorMessage}`;
+          this.processingStatus = `failed: ${n.errorMessage}${elapsed}`;
           this.toastService.show(
-            `processing failed: ${n.errorMessage}`,
+            `processing failed: ${n.errorMessage}${elapsed}`,
             'error'
           );
         }
@@ -123,16 +142,14 @@ export class UploadComponent implements OnDestroy {
     this.progress = 0;
     this.error = null;
     this.processingStatus = null;
+    this.processingProgress = 0;
+    this.processingTotalRows = 0;
+    this.processingImportedRows = 0;
+    this.clickTime = 0;
     if (this.sub) { this.sub.unsubscribe(); this.sub = null; }
   }
 
   ngOnDestroy(): void {
     this.sub?.unsubscribe();
-  }
-
-  get progressBar(): string {
-    const width = 30;
-    const filled = Math.round((this.progress / 100) * width);
-    return '[' + '#'.repeat(filled) + '\u00b7'.repeat(width - filled) + ']';
   }
 }

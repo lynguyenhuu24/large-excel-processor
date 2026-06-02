@@ -1,65 +1,86 @@
-<div class="section-header">invoice records</div>
+<app-section-header
+  title="invoice records"
+  [showAction]="true"
+  actionLabel="[+] export xlsx"
+  actionBusyLabel="[*] exporting"
+  [actionBusy]="exporting"
+  [actionPrimary]="true"
+  (actionClick)="exportRecords()"
+/>
 
-@if (loading) {
-  <p class="loading-text">loading...</p>
-}
-
-@if (error) {
-  <p class="error-text"><span class="marker-bracket">[</span><span class="marker-x">x</span><span class="marker-bracket">]</span> {{ error }}</p>
-}
-
-@if (!loading && !error) {
-  <div class="table-wrapper">
-    <table mat-table [dataSource]="dataSource" class="full-width">
-      <ng-container matColumnDef="id">
-        <th mat-header-cell *matHeaderCellDef>id</th>
-        <td mat-cell *matCellDef="let row">{{ row.id }}</td>
-      </ng-container>
-
-      <ng-container matColumnDef="invoiceNumber">
-        <th mat-header-cell *matHeaderCellDef>invoice</th>
-        <td mat-cell *matCellDef="let row">{{ row.invoiceNumber }}</td>
-      </ng-container>
-
-      <ng-container matColumnDef="vendorName">
-        <th mat-header-cell *matHeaderCellDef>vendor</th>
-        <td mat-cell *matCellDef="let row">{{ row.vendorName }}</td>
-      </ng-container>
-
-      <ng-container matColumnDef="customerName">
-        <th mat-header-cell *matHeaderCellDef>customer</th>
-        <td mat-cell *matCellDef="let row">{{ row.customerName }}</td>
-      </ng-container>
-
-      <ng-container matColumnDef="totalAmount">
-        <th mat-header-cell *matHeaderCellDef>total</th>
-        <td mat-cell *matCellDef="let row">{{ row.totalAmount | number:'1.2-2' }}</td>
-      </ng-container>
-
-      <ng-container matColumnDef="currencyCode">
-        <th mat-header-cell *matHeaderCellDef>currency</th>
-        <td mat-cell *matCellDef="let row">{{ row.currencyCode }}</td>
-      </ng-container>
-
-      <ng-container matColumnDef="status">
-        <th mat-header-cell *matHeaderCellDef>status</th>
-        <td mat-cell *matCellDef="let row">{{ row.status }}</td>
-      </ng-container>
-
-      <ng-container matColumnDef="dueDate">
-        <th mat-header-cell *matHeaderCellDef>due date</th>
-        <td mat-cell *matCellDef="let row">{{ row.dueDate | date:'mediumDate' }}</td>
-      </ng-container>
-
-      <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
-      <tr mat-row *matRowDef="let row; columns: displayedColumns"></tr>
-    </table>
+@if (exporting && exportProgress > 0) {
+  <div class="export-progress">
+    <app-progress-bar [value]="exportProgress" label="exported" />
+    <p class="processing-status">[*] exporting {{ exportImportedRows }} of {{ exportTotalRows }} records</p>
   </div>
-
-  <mat-paginator
-    [length]="totalCount"
-    [pageSize]="50"
-    [pageSizeOptions]="[25, 50, 100]"
-    showFirstLastButtons
-  ></mat-paginator>
 }
+
+<app-filter-bar
+  [(search)]="search"
+  [(status)]="statusFilter"
+  [(dateFrom)]="dateFrom"
+  [(dateTo)]="dateTo"
+  [statuses]="['Pending','Paid','Overdue','Cancelled']"
+  searchPlaceholder="search invoice, vendor, customer..."
+  (apply)="applyFilters()"
+  (reset)="resetFilters()"
+/>
+
+<app-data-table
+  [loading]="loading"
+  [error]="error"
+  [totalCount]="totalCount"
+  [pageSize]="currentPageSize"
+  [pageIndex]="currentPage - 1"
+  (pageChange)="onPageChange($event)"
+>
+  <table mat-table [dataSource]="dataSource" class="full-width">
+    <ng-container matColumnDef="#">
+      <th mat-header-cell *matHeaderCellDef>#</th>
+      <td mat-cell *matCellDef="let row; let i = index">{{ (currentPage - 1) * currentPageSize + i + 1 }}</td>
+    </ng-container>
+
+    <ng-container matColumnDef="id">
+      <th mat-header-cell *matHeaderCellDef>id</th>
+      <td mat-cell *matCellDef="let row">{{ row.id }}</td>
+    </ng-container>
+
+    <ng-container matColumnDef="invoiceNumber">
+      <th mat-header-cell *matHeaderCellDef>invoice</th>
+      <td mat-cell *matCellDef="let row">{{ row.invoiceNumber }}</td>
+    </ng-container>
+
+    <ng-container matColumnDef="vendorName">
+      <th mat-header-cell *matHeaderCellDef>vendor</th>
+      <td mat-cell *matCellDef="let row">{{ row.vendorName }}</td>
+    </ng-container>
+
+    <ng-container matColumnDef="customerName">
+      <th mat-header-cell *matHeaderCellDef>customer</th>
+      <td mat-cell *matCellDef="let row">{{ row.customerName }}</td>
+    </ng-container>
+
+    <ng-container matColumnDef="totalAmount">
+      <th mat-header-cell *matHeaderCellDef>total</th>
+      <td mat-cell *matCellDef="let row">{{ row.totalAmount | number:'1.2-2' }}</td>
+    </ng-container>
+
+    <ng-container matColumnDef="currencyCode">
+      <th mat-header-cell *matHeaderCellDef>currency</th>
+      <td mat-cell *matCellDef="let row">{{ row.currencyCode }}</td>
+    </ng-container>
+
+    <ng-container matColumnDef="status">
+      <th mat-header-cell *matHeaderCellDef>status</th>
+      <td mat-cell *matCellDef="let row">{{ row.status }}</td>
+    </ng-container>
+
+    <ng-container matColumnDef="dueDate">
+      <th mat-header-cell *matHeaderCellDef>due date</th>
+      <td mat-cell *matCellDef="let row">{{ row.dueDate | date:'mediumDate' }}</td>
+    </ng-container>
+
+    <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+    <tr mat-row *matRowDef="let row; columns: displayedColumns"></tr>
+  </table>
+</app-data-table>
