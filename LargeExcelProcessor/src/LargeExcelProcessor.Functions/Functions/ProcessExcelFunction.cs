@@ -1,5 +1,3 @@
-using System.Globalization;
-using System.Text.Json;
 using LargeExcelProcessor.Infrastructure;
 using LargeExcelProcessor.Infrastructure.Data;
 using LargeExcelProcessor.Infrastructure.Models;
@@ -7,6 +5,8 @@ using LargeExcelProcessor.Shared.Models;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Extensions.Logging;
 using OfficeOpenXml;
+using System.Globalization;
+using System.Text.Json;
 
 namespace LargeExcelProcessor.Functions.Functions;
 

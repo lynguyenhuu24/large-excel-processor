@@ -1,6 +1,3 @@
-using System.Globalization;
-using System.Text.Json;
-using System.Text.Json.Serialization;
 using Azure.Storage.Blobs;
 using LargeExcelProcessor.Infrastructure;
 using LargeExcelProcessor.Infrastructure.Data;
@@ -10,6 +7,9 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using OfficeOpenXml;
 using OfficeOpenXml.Table;
+using System.Globalization;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace LargeExcelProcessor.Functions.Functions;
 
